@@ -10,6 +10,8 @@ import QuizModal from './components/QuizModal';
 import UploadIcon from './components/icons/UploadIcon';
 import ChevronLeftIcon from './components/icons/ChevronLeftIcon';
 import ChevronRightIcon from './components/icons/ChevronRightIcon';
+import { getURLParams, hasRequiredParams } from './utils/urlParams';
+import { transformBuilderDataToLandmarks } from './utils/dataTransform';
 
 // Define the dataset access method on the window object for TypeScript
 declare global {
@@ -146,6 +148,45 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       let loadedBaseLandmarks: Landmark[] = [];
+
+      // Check for URL params to fetch from API
+      const urlParams = getURLParams();
+      if (hasRequiredParams(urlParams)) {
+        try {
+          const response = await fetch(`${urlParams.baseUrl}/organization/space/series/artifact/info/${urlParams.artifactId}/`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': `Bearer ${urlParams.token}`,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if ('artifact_data' in data && data.artifact_data) {
+              try {
+                const parsedData = JSON.parse(data.artifact_data);
+                if (Array.isArray(parsedData) && parsedData.length > 0) {
+                  // Transform the data from Interactive-Location-Builder format
+                  const transformedLandmarks = transformBuilderDataToLandmarks(parsedData);
+                  // Add intro landmark at the beginning
+                  loadedBaseLandmarks = [INTRO_LANDMARK, ...transformedLandmarks];
+                  setBaseLandmarks(loadedBaseLandmarks);
+                  setLandmarks(loadedBaseLandmarks);
+                  setIsLoading(false);
+                  return; // Exit early, API data loaded successfully
+                }
+              } catch (parseError) {
+                console.error('Failed to parse artifact_data:', parseError);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch artifact data from API:', error);
+        }
+      }
+
+      // Fallback to dataset API or default landmarks
       if (window.le_v2?.getDataset) {
         try {
           const dataset = await window.le_v2.getDataset('locations');
