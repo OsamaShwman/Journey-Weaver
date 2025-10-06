@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { QuizQuestion } from '../types';
+import { submitQuizResults, QuizAnswer } from '../utils/quizSubmission';
 
 interface QuizModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, questions, onComplete }) 
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [showResults, setShowResults] = useState(false);
+  const [answers, setAnswers] = useState<QuizAnswer[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -23,6 +25,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, questions, onComplete }) 
       setIsAnswered(false);
       setScore(0);
       setShowResults(false);
+      setAnswers([]);
     } else {
       document.body.style.overflow = '';
     }
@@ -46,18 +49,41 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, questions, onComplete }) 
   const checkAnswer = () => {
     if (selectedOptionIndex === null) return;
     setIsAnswered(true);
-    if (selectedOptionIndex === correctOptionIndex) {
+
+    const isCorrect = selectedOptionIndex === correctOptionIndex;
+    if (isCorrect) {
       setScore(s => s + 1);
     }
+
+    // Track the answer
+    const answerData: QuizAnswer = {
+      questionIndex: currentQ,
+      questionText: question.question,
+      selectedAnswer: question.options[selectedOptionIndex].text,
+      correctAnswer: question.options[correctOptionIndex].text,
+      isCorrect: isCorrect,
+    };
+    setAnswers(prev => [...prev, answerData]);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setIsAnswered(false);
     setSelectedOptionIndex(null);
     if (currentQ < questions.length - 1) {
       setCurrentQ(q => q + 1);
     } else {
       setShowResults(true);
+
+      // Submit quiz results to API
+      const submissionData = {
+        totalQuestions: questions.length,
+        correctAnswers: score,
+        score: Math.round((score / questions.length) * 100),
+        answers: answers,
+        completedAt: new Date().toISOString(),
+      };
+
+      await submitQuizResults(submissionData);
     }
   };
 
